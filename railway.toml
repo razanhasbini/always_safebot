@@ -1,5 +1,0 @@
-[build]
-cmd = "go build -o /app/app ./cmd/server"
-
-[deploy]
-startCommand = "/app/app"
