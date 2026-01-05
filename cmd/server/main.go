@@ -11,13 +11,11 @@ import (
 )
 
 func main() {
-	// --- DB ---
 	database := db.Connect(os.Getenv("DATABASE_URL"))
 	defer database.Close()
 
 	handler := &bot.Handler{DB: database}
 
-	// --- Webhook ---
 	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("WEBHOOK HIT")
 
@@ -35,10 +33,9 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	// --- CRITICAL PART ---
 	port := os.Getenv("PORT")
 	if port == "" {
-		log.Fatal("PORT env var not set")
+		log.Fatal("PORT environment variable is required")
 	}
 
 	log.Println("Server running on port", port)
