@@ -4,6 +4,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"os"
 
 	"telegram_chabot/internal/bot"
 	"telegram_chabot/internal/config"
@@ -17,6 +18,7 @@ func main() {
 	defer database.Close()
 
 	handler := &bot.Handler{DB: database}
+
 	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("WEBHOOK HIT")
 
@@ -34,6 +36,11 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
-	log.Println("Server running on port", cfg.Port)
-	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080" // local fallback
+	}
+
+	log.Println("Server running on port", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
