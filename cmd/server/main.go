@@ -7,18 +7,17 @@ import (
 	"os"
 
 	"telegram_chabot/internal/bot"
-	"telegram_chabot/internal/config"
 	"telegram_chabot/internal/db"
 )
 
 func main() {
-	cfg := config.Load()
-
-	database := db.Connect(cfg.DatabaseURL)
+	// --- DB ---
+	database := db.Connect(os.Getenv("DATABASE_URL"))
 	defer database.Close()
 
 	handler := &bot.Handler{DB: database}
 
+	// --- Webhook ---
 	http.HandleFunc("/webhook", func(w http.ResponseWriter, r *http.Request) {
 		log.Println("WEBHOOK HIT")
 
@@ -36,9 +35,10 @@ func main() {
 		w.Write([]byte("OK"))
 	})
 
+	// --- CRITICAL PART ---
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080" // local fallback
+		log.Fatal("PORT env var not set")
 	}
 
 	log.Println("Server running on port", port)
