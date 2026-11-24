@@ -8,18 +8,18 @@ import (
 	"time"
 
 	"telegram_chabot/internal/db"
+	"telegram_chabot/internal/state"
 )
 
 type Handler struct {
 	DB *sql.DB
 }
 
-var awaitingTrustedAdd = make(map[int64]bool)
-var awaitingTrustedRemove = make(map[int64]bool)
+// Conversation flags are shared across concurrent webhook requests.
+var awaitingTrustedAdd = state.NewFlagSet()
+var awaitingTrustedRemove = state.NewFlagSet()
 
 func (h *Handler) HandleUpdate(raw []byte) {
-	log.Println("HANDLE UPDATE CALLED")
-
 	var update Update
 	if err := json.Unmarshal(raw, &update); err != nil {
 		log.Println("Failed to parse update:", err)
@@ -39,8 +39,12 @@ func (h *Handler) HandleUpdate(raw []byte) {
 		tgUser.FirstName,
 		tgUser.LastName,
 	)
+	if err != nil {
+		log.Println("Failed to load user:", err)
+		return
+	}
 
-	if awaitingTrustedAdd[u.ID] && msg.ForwardFrom != nil {
+	if awaitingTrustedAdd.Has(u.ID) && msg.ForwardFrom != nil {
 		contact := msg.ForwardFrom
 
 		err := db.AddTrustedContact(
@@ -54,7 +58,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 			return
 		}
 
-		delete(awaitingTrustedAdd, u.ID)
+		awaitingTrustedAdd.Clear(u.ID)
 
 		SendMessage(
 			msg.Chat.ID,
@@ -63,7 +67,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 		return
 	}
 
-	if awaitingTrustedRemove[u.ID] && msg.ForwardFrom != nil {
+	if awaitingTrustedRemove.Has(u.ID) && msg.ForwardFrom != nil {
 		contact := msg.ForwardFrom
 
 		err := db.RemoveTrustedContact(
@@ -76,7 +80,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 			return
 		}
 
-		delete(awaitingTrustedRemove, u.ID)
+		awaitingTrustedRemove.Clear(u.ID)
 
 		SendMessage(
 			msg.Chat.ID,
@@ -85,7 +89,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 		return
 	}
 
-	if awaitingTrustedAdd[u.ID] && msg.ForwardFrom != nil {
+	if awaitingTrustedAdd.Has(u.ID) && msg.ForwardFrom != nil {
 		contact := msg.ForwardFrom
 
 		err := db.AddTrustedContact(
@@ -95,7 +99,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 			contact.FirstName,
 		)
 
-		if awaitingTrustedRemove[u.ID] && msg.ForwardFrom != nil {
+		if awaitingTrustedRemove.Has(u.ID) && msg.ForwardFrom != nil {
 			contact := msg.ForwardFrom
 
 			err := db.RemoveTrustedContact(
@@ -108,7 +112,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 				return
 			}
 
-			delete(awaitingTrustedRemove, u.ID)
+			awaitingTrustedRemove.Clear(u.ID)
 
 			SendMessage(
 				msg.Chat.ID,
@@ -122,7 +126,7 @@ func (h *Handler) HandleUpdate(raw []byte) {
 			return
 		}
 
-		delete(awaitingTrustedAdd, u.ID)
+		awaitingTrustedAdd.Clear(u.ID)
 
 		SendMessage(
 			msg.Chat.ID,
@@ -230,13 +234,13 @@ func (h *Handler) handleCommand(userID int64, chatID int64, cmd string) {
 				"To check if someone is driving, just ask: is [name] driving?",
 		)
 	case "/add_trusted":
-		awaitingTrustedAdd[userID] = true
+		awaitingTrustedAdd.Set(userID)
 		SendMessage(
 			chatID,
 			" Please forward me a message from the person you want to trust.",
 		)
 	case "/remove_trusted":
-		awaitingTrustedRemove[userID] = true
+		awaitingTrustedRemove.Set(userID)
 		SendMessage(
 			chatID,
 			" Please forward me a message from the person you want to remove.",
